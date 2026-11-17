@@ -1,0 +1,24 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Build output
+/bin/
+/neocollects-api
+*.exe
+*.test
+*.out
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+
+# Database archives
+backups/
+archive/
+
+# just in case
+*.sh
+CLAUDE.md

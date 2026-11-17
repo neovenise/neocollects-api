@@ -1,0 +1,16 @@
+# Local development only: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up db`
+# lets `go run ./cmd/api` reach the database on 127.0.0.1 (loopback only, never exposed to the network).
+services:
+  db:
+    networks:
+      - default
+      - backend
+    ports:
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
+  # The S3 port on loopback, for `go run ./cmd/import -images` on your machine.
+  garage:
+    networks:
+      - default
+      - backend
+    ports:
+      - "127.0.0.1:${S3_PORT:-3900}:3900"

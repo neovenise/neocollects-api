@@ -1,0 +1,85 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-neocollects}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${DB_NAME:-neocollects}?sslmode=disable
+      HTTP_ADDR: ":8090"
+      S3_ENDPOINT: garage:3900
+      S3_BUCKET: ${S3_BUCKET:-images}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      IMAGES_BASE_URL: ${IMAGES_BASE_URL:-}
+    ports:
+      - "${APP_PORT:-8090}:8090"
+    networks:
+      - default   # published port + outbound access (TCGdex, malie.io, image storage)
+      - backend   # private link to the database
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres:18.4-alpine3.24
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-neocollects}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_DB: ${DB_NAME:-neocollects}
+    # No published ports: only services on the "backend" network can reach it.
+    networks:
+      - backend
+    volumes:
+      - db_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-neocollects} -d ${DB_NAME:-neocollects}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  # The S3-compatible store of the card pictures (Garage: MinIO's server is no longer maintained).
+  garage:
+    image: dxflrs/garage:v2.5.0
+    restart: unless-stopped
+    # One node, and the bucket and its key created from the variables below: nothing to initialise by hand.
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    environment:
+      GARAGE_CONFIG_FILE: /etc/garage.toml
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?GARAGE_RPC_SECRET is required (openssl rand -hex 32)}
+      GARAGE_DEFAULT_BUCKET: ${S3_BUCKET:-images}
+      GARAGE_DEFAULT_ACCESS_KEY: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required (GK + 24 hex digits)}
+      GARAGE_DEFAULT_SECRET_KEY: ${S3_SECRET_KEY:?S3_SECRET_KEY is required (64 hex digits)}
+    volumes:
+      - ./garage/garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+    networks:
+      - backend   # only the API and the image proxy reach it
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  # Read-only public door to the bucket (no listing, long cache).
+  images:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    environment:
+      S3_BUCKET: ${S3_BUCKET:-images}
+      NGINX_ENVSUBST_FILTER: S3_BUCKET   # leave nginx's own $variables alone
+    volumes:
+      - ./garage/images.conf.template:/etc/nginx/templates/default.conf.template:ro
+    ports:
+      - "${IMAGES_PORT:-8091}:80"
+    networks:
+      - default
+      - backend
+    depends_on:
+      - garage
+networks:
+  backend:
+    internal: true   # no route to the outside world or the host
+volumes:
+  db_data:
+  garage_meta:
+  garage_data:

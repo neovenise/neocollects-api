@@ -1,0 +1,16 @@
+DROP TRIGGER IF EXISTS users_default_lists ON users;
+DROP FUNCTION IF EXISTS create_default_lists();
+DROP TABLE IF EXISTS list_cards;
+DROP TABLE IF EXISTS lists;
+DROP TABLE IF EXISTS idempotency_keys;
+DROP TABLE IF EXISTS collection_entries;
+DROP TABLE IF EXISTS access_tokens;
+DROP TABLE IF EXISTS refresh_tokens;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS card_foils;
+DROP TABLE IF EXISTS card_price_history;
+DROP TABLE IF EXISTS card_prices;
+DROP TABLE IF EXISTS cards;
+DROP TABLE IF EXISTS sets;
+DROP TABLE IF EXISTS blocks;

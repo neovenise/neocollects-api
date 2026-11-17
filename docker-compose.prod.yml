@@ -1,0 +1,16 @@
+# Production: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# The server's own Caddy (caddy/Caddyfile) is the door: it reaches the API and the pictures on loopback only.
+services:
+  api:
+    ports: !override
+      - "127.0.0.1:${APP_PORT:-8090}:8090"
+  # The pictures' read-only side, for Caddy: it needs a non-internal network to be published, even on loopback.
+  garage:
+    networks:
+      - default
+      - backend
+    ports:
+      - "127.0.0.1:${IMAGES_PORT:-3902}:3902"
+  # The development proxy: Caddy does its job here.
+  images:
+    profiles: ["dev"]
