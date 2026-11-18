@@ -1,0 +1,21 @@
+# Garage: the S3-compatible object store that holds the card pictures (docs/API.md, "Images").
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage"
+
+# The "website" side serves a bucket read-only to anyone who knows an object's name, and never lists it. The proxy in
+# front of it (garage/images.conf.template) sets the Host header that picks the bucket.
+[s3_web]
+bind_addr = "[::]:3902"
+root_domain = ".web.garage"
+index = "index.html"
