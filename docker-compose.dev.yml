@@ -7,7 +7,7 @@ services:
       - backend
     ports:
       - "127.0.0.1:${DB_PORT:-5433}:5432"
-  # The S3 port on loopback, for `go run ./cmd/import -images` on your machine.
+  # The S3 port on loopback, for ../neocollects-images and scripts/backup-all.sh on your machine.
   garage:
     networks:
       - default

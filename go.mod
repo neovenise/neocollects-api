@@ -3,13 +3,11 @@ module github.com/neovenise/neocollects-api
 go 1.27.3
 
 require (
-	github.com/bep/gowebp v0.4.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/minio/minio-go/v7 v7.4.1
 	golang.org/x/crypto v0.57.0
-	golang.org/x/image v0.48.0
 	golang.org/x/text v0.44.0
 )
 

@@ -14,7 +14,7 @@ import (
 var testPool *pgxpool.Pool
 
 func TestMain(m *testing.M) {
-	if url := os.Getenv("TEST_DATABASE_URL"); url != "" {
+	if url := database.TestURL(); url != "" {
 		if err := database.Migrate(url, "../../migrations"); err != nil {
 			println("migrations failed:", err.Error())
 			os.Exit(1)
@@ -40,7 +40,7 @@ const (
 func newTx(t *testing.T) pgx.Tx {
 	t.Helper()
 	if testPool == nil {
-		t.Skip("TEST_DATABASE_URL is not set")
+		t.Skip("no test database: set DATABASE_URL")
 	}
 	tx, err := testPool.Begin(context.Background())
 	if err != nil {

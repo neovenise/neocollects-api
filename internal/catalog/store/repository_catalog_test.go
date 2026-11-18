@@ -102,16 +102,6 @@ func TestEnsureBlockKeepsAnExistingPosition(t *testing.T) {
 	}
 }
 
-func TestSetCodeIsUppercase(t *testing.T) {
-	repo, _ := newTx(t)
-	seed(t, repo)
-
-	code, err := repo.SetCode(context.Background(), "sv03")
-	if err != nil || code != "OBF" {
-		t.Errorf("code = %q (%v)", code, err)
-	}
-}
-
 func TestReimportingKeepsTheDigitalFlag(t *testing.T) {
 	repo, tx := newTx(t)
 	ctx := context.Background()
@@ -122,31 +112,6 @@ func TestReimportingKeepsTheDigitalFlag(t *testing.T) {
 	var digital bool
 	if err := tx.QueryRow(ctx, `SELECT is_digital FROM blocks WHERE id = 'tcgp'`).Scan(&digital); err != nil || !digital {
 		t.Errorf("is_digital = %v (%v)", digital, err)
-	}
-}
-
-func TestSetsAreFoundByCodeAndCardsByNumber(t *testing.T) {
-	repo, tx := newTx(t)
-	seedCatalog(t, tx)
-	ctx := context.Background()
-
-	byCode, err := repo.SetsByCode(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := byCode["OBF"]; len(got) != 1 || got[0] != "sv03" {
-		t.Errorf("OBF = %v", got)
-	}
-	if _, has := byCode[""]; has {
-		t.Error("sets without a printed code have no entry")
-	}
-
-	numbers, err := repo.CardIDsByNumber(ctx, "30th")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if numbers[24] != "30th-024" || numbers[1] != "30th-001" || len(numbers) != 2 {
-		t.Errorf("numbers = %v (a lettered number has none)", numbers)
 	}
 }
 

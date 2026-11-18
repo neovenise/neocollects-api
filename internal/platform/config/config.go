@@ -2,6 +2,8 @@ package config
 
 import (
 	"errors"
+	"net"
+	"net/url"
 	"os"
 )
 
@@ -12,11 +14,6 @@ type Config struct {
 
 	TCGdexBaseURL string
 	TCGdexLang    string
-
-	TCGdexFallbackLang string
-
-	MalieBaseURL  string
-	MalieLanguage string
 
 	ImagesBaseURL string
 
@@ -36,18 +33,15 @@ type Config struct {
 // Load reads and validates the configuration from the environment.
 func Load() (*Config, error) {
 	cfg := &Config{
-		DatabaseURL: os.Getenv("DATABASE_URL"),
+		DatabaseURL: DatabaseURL(),
 		HTTPAddr:    os.Getenv("HTTP_ADDR"),
 		Debug:       os.Getenv("APP_DEBUG") == "true",
 
-		TCGdexBaseURL:      os.Getenv("TCGDEX_BASE_URL"),
-		TCGdexLang:         os.Getenv("TCGDEX_LANG"),
-		TCGdexFallbackLang: os.Getenv("TCGDEX_FALLBACK_LANG"),
+		TCGdexBaseURL: os.Getenv("TCGDEX_BASE_URL"),
+		TCGdexLang:    os.Getenv("TCGDEX_LANG"),
 
 		ImportEnabled: os.Getenv("IMPORT_ENABLED") != "false",
 		ImagesBaseURL: os.Getenv("IMAGES_BASE_URL"),
-		MalieBaseURL:  os.Getenv("MALIE_BASE_URL"),
-		MalieLanguage: os.Getenv("MALIE_LANGUAGE"),
 
 		S3Endpoint:  os.Getenv("S3_ENDPOINT"),
 		S3Bucket:    os.Getenv("S3_BUCKET"),
@@ -59,7 +53,7 @@ func Load() (*Config, error) {
 	}
 
 	if cfg.DatabaseURL == "" {
-		return nil, errors.New("DATABASE_URL is not set")
+		return nil, errors.New("neither DATABASE_URL nor DB_PASSWORD is set")
 	}
 	if cfg.HTTPAddr == "" {
 		cfg.HTTPAddr = ":8090"
@@ -70,16 +64,6 @@ func Load() (*Config, error) {
 	}
 	if cfg.TCGdexLang == "" {
 		cfg.TCGdexLang = "fr"
-	}
-
-	if cfg.TCGdexFallbackLang == "" {
-		cfg.TCGdexFallbackLang = "en"
-	}
-	if cfg.MalieBaseURL == "" {
-		cfg.MalieBaseURL = "https://cdn.malie.io/file/malie-io/tcgl/export/"
-	}
-	if cfg.MalieLanguage == "" {
-		cfg.MalieLanguage = "fr-FR"
 	}
 
 	if cfg.S3Bucket == "" {
@@ -94,3 +78,29 @@ func Load() (*Config, error) {
 
 // HasImageStorage reports whether an image storage is configured.
 func (c *Config) HasImageStorage() bool { return c.S3Endpoint != "" }
+
+// DatabaseURL returns DATABASE_URL, else builds it from DB_PASSWORD and the other DB_* variables.
+func DatabaseURL() string {
+	if u := os.Getenv("DATABASE_URL"); u != "" {
+		return u
+	}
+	password := os.Getenv("DB_PASSWORD")
+	if password == "" {
+		return ""
+	}
+	u := url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(envOr("DB_USER", "neocollects"), password),
+		Host:     net.JoinHostPort(envOr("DB_HOST", "127.0.0.1"), envOr("DB_PORT", "5433")),
+		Path:     "/" + envOr("DB_NAME", "neocollects"),
+		RawQuery: "sslmode=disable",
+	}
+	return u.String()
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}

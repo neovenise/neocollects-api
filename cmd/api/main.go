@@ -53,12 +53,7 @@ func main() {
 
 	// Start the nightly catalog refresh in the background.
 	if cfg.ImportEnabled {
-		job, err := app.CatalogJob(cfg, pool, logger)
-		if err != nil {
-			logger.Error("image storage is misconfigured", "error", err)
-			os.Exit(1)
-		}
-		go job.Run(ctx)
+		go app.CatalogJob(cfg, pool, logger).Run(ctx)
 	}
 	if cfg.InviteCode == "" {
 		logger.Warn("INVITE_CODE is not set: sign-up is closed")

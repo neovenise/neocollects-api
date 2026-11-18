@@ -223,9 +223,7 @@ func TestPicturelessCardsStayLastWhateverTheRelevanceOfTheText(t *testing.T) {
 	if err := repo.UpsertCard(context.Background(), catalog.Card{ID: "sv03-125", SetID: "sv03", LocalID: "125", Name: "Dracaufeu-ex"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.SetImageKeys(context.Background(), "sv03-125", "cards/125.webp", "cards/125.thumb.webp", "h"); err != nil {
-		t.Fatal(err)
-	}
+	setImageKeys(t, tx, "sv03-125", "cards/125.webp", "cards/125.thumb.webp", "h")
 
 	got := search(t, q, catalog.CardFilter{Query: "e"})
 

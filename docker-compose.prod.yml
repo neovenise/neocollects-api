@@ -3,14 +3,14 @@
 services:
   api:
     ports: !override
-      - "127.0.0.1:${APP_PORT:-8090}:8090"
+      - "127.0.0.1:8090:8090"
   # The pictures' read-only side, for Caddy: it needs a non-internal network to be published, even on loopback.
   garage:
     networks:
       - default
       - backend
     ports:
-      - "127.0.0.1:${IMAGES_PORT:-3902}:3902"
+      - "127.0.0.1:3902:3902"
   # The development proxy: Caddy does its job here.
   images:
     profiles: ["dev"]

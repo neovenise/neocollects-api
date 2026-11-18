@@ -42,8 +42,6 @@ type Card struct {
 	TrainerType    string
 	RegulationMark string
 	Illustrator    string
-
-	SharpImageURL string
 }
 
 type Price struct {
@@ -55,13 +53,4 @@ type Price struct {
 	Avg1Cents, Avg7Cents, Avg30Cents *int
 
 	ProductID *int
-}
-
-type Foil struct {
-	CardID     string
-	Look       string
-	FrontURL   string
-	MaskURL    string
-	EtchURL    string
-	SourceHash string
 }

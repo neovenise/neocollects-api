@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/neovenise/neocollects-api/internal/catalog"
+	"github.com/neovenise/neocollects-api/internal/platform/workpool"
 	"github.com/neovenise/neocollects-api/internal/sources/tcgdex"
 )
 
@@ -27,9 +28,6 @@ type Store interface {
 	UpsertPrice(ctx context.Context, p catalog.Price) error
 	CardIDs(ctx context.Context, setID string) (map[string]bool, error)
 	SetCount(ctx context.Context) (int, error)
-	CardIDsWithoutImage(ctx context.Context, setID string) (map[string]bool, error)
-	SetFallbackImage(ctx context.Context, cardID, url string) error
-	SetSharpImage(ctx context.Context, cardID, url string) error
 }
 
 type Details int
@@ -55,13 +53,8 @@ type Result struct {
 	Details int
 	Prices  int
 
-	CardsAdded int
-
-	SharpImages int
-
-	ImagesFilled int
-	FailedSets   []string
-	FailedCards  []string
+	FailedSets  []string
+	FailedCards []string
 }
 
 type Importer struct {
@@ -70,27 +63,6 @@ type Importer struct {
 	logger *slog.Logger
 
 	now func() time.Time
-
-	sharp SharpImageSource
-
-	supplements []CardSupplement
-
-	fallbacks []ImageFallback
-}
-
-func (i *Importer) WithSharpImages(sharp SharpImageSource) *Importer {
-	i.sharp = sharp
-	return i
-}
-
-func (i *Importer) WithCardSupplements(supplements ...CardSupplement) *Importer {
-	i.supplements = supplements
-	return i
-}
-
-func (i *Importer) WithImageFallbacks(fallbacks ...ImageFallback) *Importer {
-	i.fallbacks = fallbacks
-	return i
 }
 
 func New(source Source, store Store, logger *slog.Logger) *Importer {
@@ -181,10 +153,6 @@ func (i *Importer) importSet(ctx context.Context, id string, opts Options, orpha
 		}
 	}
 
-	i.addMissingCards(ctx, set.ID, res)
-	i.addSharpImages(ctx, set.ID, res)
-	i.fillMissingImages(ctx, set.ID, res)
-
 	failed := i.importDetails(ctx, set.ID, toDetail, opts.Concurrency, res)
 	res.FailedCards = append(res.FailedCards, failed...)
 	i.logger.Info("set imported", "set", set.ID, "cards", len(set.Cards), "details", len(toDetail), "failed", len(failed))
@@ -194,39 +162,25 @@ func (i *Importer) importSet(ctx context.Context, id string, opts Options, orpha
 func (i *Importer) importDetails(ctx context.Context, setID string, ids []string, concurrency int, res *Result) []string {
 	var (
 		mu     sync.Mutex
-		wg     sync.WaitGroup
 		failed []string
-		slots  = make(chan struct{}, concurrency)
 	)
-	for _, id := range ids {
-		select {
-		case slots <- struct{}{}:
-		case <-ctx.Done():
-			return failed
+	_ = workpool.ForEach(ctx, ids, concurrency, func(id string) {
+		priced, err := i.importCardDetail(ctx, setID, id)
+
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			if !errors.Is(err, context.Canceled) {
+				i.logger.Warn("card detail failed", "card", id, "error", err)
+				failed = append(failed, id)
+			}
+			return
 		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer func() { <-slots }()
-
-			priced, err := i.importCardDetail(ctx, setID, id)
-
-			mu.Lock()
-			defer mu.Unlock()
-			if err != nil {
-				if !errors.Is(err, context.Canceled) {
-					i.logger.Warn("card detail failed", "card", id, "error", err)
-					failed = append(failed, id)
-				}
-				return
-			}
-			res.Details++
-			if priced {
-				res.Prices++
-			}
-		}()
-	}
-	wg.Wait()
+		res.Details++
+		if priced {
+			res.Prices++
+		}
+	})
 	return failed
 }
 
@@ -255,70 +209,4 @@ func (i *Importer) importCardDetail(ctx context.Context, setID, id string) (pric
 		CardID: card.ID, Cents: cents, Currency: "EUR", UpdatedAt: updated,
 		Avg1Cents: day, Avg7Cents: week, Avg30Cents: month, ProductID: card.ProductID(),
 	})
-}
-
-func (i *Importer) fillMissingImages(ctx context.Context, setID string, res *Result) {
-	for _, fallback := range i.fallbacks {
-		missing, err := i.store.CardIDsWithoutImage(ctx, setID)
-		if err != nil || len(missing) == 0 {
-			return
-		}
-		found, err := fallback.Images(ctx, setID, missing)
-		if err != nil {
-			if ctx.Err() == nil {
-				i.logger.Debug("image fallback unavailable for a set", "set", setID, "error", err)
-			}
-			continue
-		}
-		for cardID, url := range found {
-			if !missing[cardID] {
-				continue
-			}
-			if err := i.store.SetFallbackImage(ctx, cardID, url); err != nil {
-				i.logger.Warn("could not store a fallback picture", "card", cardID, "error", err)
-				continue
-			}
-			res.ImagesFilled++
-		}
-	}
-}
-
-func (i *Importer) addMissingCards(ctx context.Context, setID string, res *Result) {
-	for _, supplement := range i.supplements {
-		cards, err := supplement.MissingCards(ctx, setID)
-		if err != nil {
-			if ctx.Err() == nil {
-				i.logger.Debug("card supplement unavailable for a set", "set", setID, "error", err)
-			}
-			continue
-		}
-		for _, card := range cards {
-			if err := i.store.UpsertCard(ctx, card); err != nil {
-				i.logger.Warn("could not add a missing card", "card", card.ID, "error", err)
-				continue
-			}
-			res.CardsAdded++
-			i.logger.Info("card added from a supplement", "card", card.ID, "name", card.Name)
-		}
-	}
-}
-
-func (i *Importer) addSharpImages(ctx context.Context, setID string, res *Result) {
-	if i.sharp == nil {
-		return
-	}
-	found, err := i.sharp.SharpImages(ctx, setID)
-	if err != nil {
-		if ctx.Err() == nil {
-			i.logger.Debug("sharp pictures unavailable for a set", "set", setID, "error", err)
-		}
-		return
-	}
-	for cardID, url := range found {
-		if err := i.store.SetSharpImage(ctx, cardID, url); err != nil {
-			i.logger.Warn("could not store a sharp picture", "card", cardID, "error", err)
-			continue
-		}
-		res.SharpImages++
-	}
 }

@@ -15,7 +15,7 @@ import (
 var testPool *pgxpool.Pool
 
 func TestMain(m *testing.M) {
-	if url := os.Getenv("TEST_DATABASE_URL"); url != "" {
+	if url := database.TestURL(); url != "" {
 		if err := database.Migrate(url, "../../../migrations"); err != nil {
 			println("migrations failed:", err.Error())
 			os.Exit(1)
@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 func newTx(t *testing.T) (*Repository, pgx.Tx) {
 	t.Helper()
 	if testPool == nil {
-		t.Skip("TEST_DATABASE_URL is not set")
+		t.Skip("no test database: set DATABASE_URL")
 	}
 	tx, err := testPool.Begin(context.Background())
 	if err != nil {
@@ -84,4 +84,12 @@ func history(t *testing.T, tx pgx.Tx, cardID string) []historyRow {
 func price(cardID string, cents int, day string) catalog.Price {
 	t, _ := time.Parse(time.DateOnly, day)
 	return catalog.Price{CardID: cardID, Cents: cents, Currency: "EUR", UpdatedAt: t.Add(22 * time.Hour)}
+}
+
+// setImageKeys records the pictures that neocollects-images copied for a card.
+func setImageKeys(t *testing.T, tx pgx.Tx, cardID, imageKey, thumbKey, hash string) {
+	t.Helper()
+	if _, err := tx.Exec(context.Background(), `UPDATE cards SET image_key = $2, thumb_key = $3, image_source_hash = $4 WHERE id = $1`, cardID, imageKey, thumbKey, hash); err != nil {
+		t.Fatal(err)
+	}
 }

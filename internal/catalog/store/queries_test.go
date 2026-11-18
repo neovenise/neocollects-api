@@ -60,9 +60,7 @@ func seedCatalog(t *testing.T, tx pgx.Tx) *Queries {
 			t.Fatal(err)
 		}
 	}
-	if err := repo.SetImageKeys(ctx, "30th-024", "cards/30th-024.webp", "cards/30th-024.thumb.webp", "h"); err != nil {
-		t.Fatal(err)
-	}
+	setImageKeys(t, tx, "30th-024", "cards/30th-024.webp", "cards/30th-024.thumb.webp", "h")
 	for _, p := range []catalog.Price{price("30th-024", 56, "2026-11-01"), price("30th-024", 60, "2026-11-10"), price("30th-024", 56, "2026-11-14")} {
 		if err := repo.UpsertPrice(ctx, p); err != nil {
 			t.Fatal(err)
