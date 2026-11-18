@@ -1,0 +1,17 @@
+# Public face of the image bucket: read-only, no listing, long cache. nginx fills ${S3_BUCKET} from the environment.
+# In production put your TLS reverse proxy (Caddy, nginx...) in front of this service.
+server {
+    listen 80;
+
+    # Only reading: the API writes through the S3 port, never through here.
+    if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+
+    location / {
+        # Garage picks the bucket from the Host header: bucket name + the root_domain of [s3_web].
+        proxy_set_header Host ${S3_BUCKET}.web.garage;
+        proxy_pass http://garage:3902;
+        # Object keys contain a hash of their content: a key never changes meaning, so browsers may keep it forever.
+        proxy_hide_header Cache-Control;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+    }
+}
