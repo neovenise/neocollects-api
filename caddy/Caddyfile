@@ -10,14 +10,5 @@
 
 	reverse_proxy 127.0.0.1:3902 {
 		header_up Host {$S3_BUCKET:images}.web.garage
-
-		@found status 2xx
-		handle_response @found {
-			header Cache-Control "public, max-age=31536000, immutable"
-			copy_response_headers {
-				exclude Cache-Control
-			}
-			copy_response
-		}
 	}
 }
